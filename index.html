@@ -601,7 +601,7 @@ function saveApiKey() {
   if (!key) return;
   localStorage.setItem('cineswipe_apikey', key);
   document.getElementById('error-state').style.display = 'none';
-  init();
+  loadFeed();
 }
 
 // ── AI Progress badge on header icon ──
@@ -1059,6 +1059,12 @@ async function loadMoreMovies() {
 async function loadFeed() {
   document.getElementById('loading').style.display = 'flex';
   try {
+    // Quick key validation first
+    const key = getApiKey();
+    const testRes = await fetch(`${TMDB_BASE}/configuration?api_key=${key}`);
+    if (testRes.status === 401) throw new Error('Invalid API key — please check it and try again');
+    if (!testRes.ok) throw new Error('TMDB unreachable (status ' + testRes.status + ')');
+
     // Fetch 4 pages sequentially (parallel calls would race on moviePageNum)
     for (let i = 0; i < 4; i++) {
       const batch = await fetchMovies();
@@ -1079,9 +1085,17 @@ async function loadFeed() {
   } catch(e) {
     console.error('[CineSwipe] loadFeed error:', e);
     document.getElementById('loading').style.display = 'none';
-    document.getElementById('error-state').style.display = 'flex';
-    document.getElementById('error-state').querySelector('p').textContent =
-      'Could not load movies (' + e.message + '). Check your TMDB API key.';
+    // Show error inline in card area, not on onboarding screen
+    const wrapper = document.getElementById('card-wrapper');
+    if (wrapper) {
+      wrapper.innerHTML = `
+        <div style="text-align:center;padding:30px 20px;color:var(--text-dim)">
+          <div style="font-size:40px;margin-bottom:14px">⚠️</div>
+          <div style="font-family:'Playfair Display',serif;font-size:18px;color:var(--cream);margin-bottom:10px">Could not load movies</div>
+          <p style="font-size:13px;line-height:1.6;margin-bottom:16px">${e.message}<br><br>Check your TMDB API key in ⚙️ Settings.</p>
+          <button onclick="clearAllData()" style="background:var(--gold);color:#000;border:none;border-radius:10px;padding:10px 24px;font-family:inherit;font-weight:600;cursor:pointer;font-size:14px;">Reset & Re-enter Key</button>
+        </div>`;
+    }
   }
 }
 
